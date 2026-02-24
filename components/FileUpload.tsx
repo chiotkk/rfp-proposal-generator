@@ -1,9 +1,67 @@
 import React, { useCallback, useState } from 'react';
-import { Upload, FileText, X } from 'lucide-react';
+import { Upload, FileText, X, Sparkles } from 'lucide-react';
 
 interface FileUploadProps {
   onProcess: (text: string) => void;
 }
+
+const MOCK_RFP_TEXT = `REQUEST FOR PROPOSAL (RFP)
+Project Title: Next-Gen Supply Chain Visualization Dashboard
+Issued By: Global Logistics Solutions Inc. (GLS)
+Date: October 24, 2024
+
+1. EXECUTIVE SUMMARY
+Global Logistics Solutions Inc. (GLS) is seeking a qualified software development vendor to design and build a web-based Supply Chain Visualization Dashboard. The goal is to provide our internal operations team and key enterprise clients with real-time visibility into freight movements, inventory levels across regional warehouses, and predictive analytics for potential shipping delays.
+
+2. PROJECT OBJECTIVES
+- Reduce manual tracking time by 40% within the first 6 months.
+- Provide a centralized "Control Tower" view for 50+ concurrent users.
+- Enable mobile access for field agents.
+- Ensure data security and role-based access control.
+
+3. KEY FUNCTIONAL REQUIREMENTS
+3.1. User Authentication & Security
+- Single Sign-On (SSO) integration with Azure AD.
+- Multi-Factor Authentication (MFA) for admin accounts.
+- Role-Based Access Control (RBAC) covering: Super Admin, Regional Manager, and Client Viewer.
+
+3.2. Dashboard & Visualization
+- Interactive map view (Google Maps or Mapbox integration) showing live truck/ship locations.
+- Real-time charts for volume metrics (Daily Tonnage, On-Time Performance).
+- Drill-down capability from global view to individual shipment details.
+
+3.3. Integrations
+- Must ingest data via REST API from our legacy ERP (SAP S/4HANA).
+- Integration with 3rd party GPS providers (Samsara, Geotab).
+- Export functionality (PDF, CSV) for reporting.
+
+3.4. Notifications
+- Automated email and SMS alerts for shipment delays > 4 hours.
+- In-app notification center for system updates.
+
+4. TECHNICAL REQUIREMENTS
+- Preferred Stack: React.js (Frontend), Node.js or Python (Backend), PostgreSQL (Database).
+- Cloud Infrastructure: AWS or Azure.
+- Compliance: Must adhere to GDPR and SOC2 Type II standards.
+- Performance: Dashboard operational load time under 2 seconds.
+
+5. TIMELINE & DELIVERABLES
+- Proposal Submission Deadline: Nov 15, 2024.
+- Vendor Selection: Dec 1, 2024.
+- Project Kickoff: Jan 15, 2025.
+- MVP Launch: April 1, 2025 (10-week development window preferred).
+
+6. BUDGET
+The estimated budget for the MVP phase is between $80,000 and $120,000 USD.
+
+7. PROPOSAL FORMAT
+Please include:
+- Company Profile and relevant case studies in Logistics/Supply Chain.
+- Proposed Technical Solution and Architecture.
+- Detailed Breakdown of Costs (Time & Materials vs Fixed Price).
+- Project Timeline with key milestones.
+- Team Structure and bios of key personnel.
+`;
 
 export const FileUpload: React.FC<FileUploadProps> = ({ onProcess }) => {
   const [textInput, setTextInput] = useState('');
@@ -42,6 +100,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onProcess }) => {
 
   const removeFile = (idx: number) => {
     setFiles(files.filter((_, i) => i !== idx));
+  };
+
+  const loadMockData = () => {
+    setTextInput(MOCK_RFP_TEXT);
   };
 
   const handleSubmit = async () => {
@@ -109,9 +171,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onProcess }) => {
 
       {/* Text Area */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">Paste Requirements Text</label>
+        <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-slate-700">Paste Requirements Text</label>
+            <button 
+                onClick={loadMockData}
+                className="text-xs flex items-center space-x-1 text-primary-600 hover:text-primary-700 font-medium bg-primary-50 hover:bg-primary-100 px-2 py-1 rounded transition-colors"
+            >
+                <Sparkles className="w-3 h-3" />
+                <span>Load Sample RFP</span>
+            </button>
+        </div>
         <textarea 
-            className="w-full h-32 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-shadow text-sm"
+            className="w-full h-48 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-shadow text-sm font-mono text-slate-600"
             placeholder="Paste the raw text from the RFP here..."
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
@@ -122,7 +193,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onProcess }) => {
         <button 
             onClick={handleSubmit}
             disabled={files.length === 0 && !textInput.trim()}
-            className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2.5 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2.5 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-sm"
         >
             Analyze & Build Proposal
         </button>

@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { RFPAnalysis, Recommendations, BuildingBlock } from '../types';
 import { BUILDING_BLOCKS } from '../constants';
 
-const getClient = () => {
+export const getClient = () => {
     // We assume the API key is available in the environment variables
     const apiKey = process.env.API_KEY || '';
     if (!apiKey) {
@@ -119,7 +119,18 @@ export const analyzeRFP = async (rfpText: string): Promise<RFPAnalysis> => {
         });
 
         if (response.text) {
-            return cleanAndParseJson<RFPAnalysis>(response.text);
+            const parsed = cleanAndParseJson<Partial<RFPAnalysis>>(response.text);
+            return {
+                clientName: parsed.clientName || "Unknown Client",
+                projectTitle: parsed.projectTitle || "Untitled Project",
+                summary: parsed.summary || "No summary available.",
+                keyRequirements: parsed.keyRequirements || [],
+                suggestedStrategy: {
+                    complexity: parsed.suggestedStrategy?.complexity || 'Medium',
+                    speed: parsed.suggestedStrategy?.speed || 'Standard',
+                    tone: parsed.suggestedStrategy?.tone || 'Professional'
+                }
+            };
         }
         throw new Error("No response text from Gemini");
     } catch (error) {
@@ -135,6 +146,49 @@ export const analyzeRFP = async (rfpText: string): Promise<RFPAnalysis> => {
     }
 };
 
+export const tailorContent = async (currentContent: string, analysis: RFPAnalysis, sectionName: string): Promise<string> => {
+    const ai = getClient();
+    
+    if (!process.env.API_KEY) {
+         return currentContent + "\n\n[AI Tailoring Failed: Missing API Key]";
+    }
+
+    try {
+        const prompt = `
+        You are an expert Proposal Writer. Your task is to rewrite the following proposal section to specifically address the client's RFP requirements.
+        
+        CONTEXT:
+        Client: ${analysis.clientName}
+        Project: ${analysis.projectTitle}
+        Key Requirements: ${analysis.keyRequirements.join(', ')}
+        Strategy Tone: ${analysis.suggestedStrategy.tone}
+        
+        SECTION TO REWRITE (${sectionName}):
+        ${currentContent}
+        
+        INSTRUCTIONS:
+        1. Keep the core message and structure of the original content.
+        2. Insert specific references to the client's name and project where appropriate.
+        3. Highlight how our solution specifically meets their key requirements.
+        4. Adjust the tone to match the strategy (${analysis.suggestedStrategy.tone}).
+        5. Return ONLY the rewritten Markdown content. Do not include explanations.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt,
+        });
+
+        if (response.text) {
+            return response.text.trim();
+        }
+        throw new Error("No response text for tailoring");
+    } catch (error) {
+        console.error("Tailoring failed", error);
+        return currentContent;
+    }
+};
+
 export const recommendBlocks = async (analysis: RFPAnalysis): Promise<Recommendations> => {
     const ai = getClient();
     
@@ -144,6 +198,9 @@ export const recommendBlocks = async (analysis: RFPAnalysis): Promise<Recommenda
 
     const blocksSummary = BUILDING_BLOCKS.map(b => ({ id: b.id, name: b.name, desc: b.description, category: b.category }));
 
+    const complexity = analysis.suggestedStrategy?.complexity || 'Medium';
+    const speed = analysis.suggestedStrategy?.speed || 'Standard';
+
     try {
         const prompt = `
         Based on the following RFP analysis, select the most appropriate Building Block ID for each category from the provided list.
@@ -151,7 +208,7 @@ export const recommendBlocks = async (analysis: RFPAnalysis): Promise<Recommenda
         RFP ANALYSIS:
         Client: ${analysis.clientName}
         Summary: ${analysis.summary}
-        Strategy: Complexity=${analysis.suggestedStrategy.complexity}, Speed=${analysis.suggestedStrategy.speed}
+        Strategy: Complexity=${complexity}, Speed=${speed}
         
         AVAILABLE BLOCKS:
         ${JSON.stringify(blocksSummary)}

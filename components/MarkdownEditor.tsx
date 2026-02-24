@@ -1,16 +1,19 @@
 import React, { useRef, useState } from 'react';
 import { 
     Bold, Italic, List, ListOrdered, Link as LinkIcon, Image as ImageIcon, 
-    Heading1, Heading2, Eye, EyeOff, Undo, Redo 
+    Heading1, Heading2, Eye, EyeOff, Undo, Redo, Wand2
 } from 'lucide-react';
+import Markdown from 'react-markdown';
 
 interface MarkdownEditorProps {
     value: string;
     onChange: (val: string) => void;
     label?: string;
+    onTailor?: () => Promise<void>;
+    isTailoring?: boolean;
 }
 
-export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ value, onChange, label }) => {
+export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ value, onChange, label, onTailor, isTailoring }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showPreview, setShowPreview] = useState(false);
@@ -63,6 +66,21 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ value, onChange,
                 <div className="flex items-center space-x-1">
                     {label && <span className="text-xs font-bold text-slate-400 uppercase mr-3">{label}</span>}
                     
+                    {onTailor && (
+                        <button 
+                            onClick={onTailor}
+                            disabled={isTailoring}
+                            className={`flex items-center space-x-1 px-2 py-1 rounded text-xs font-medium border transition-all mr-2
+                                ${isTailoring 
+                                    ? 'bg-primary-50 text-primary-400 border-primary-100 cursor-wait' 
+                                    : 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 border-indigo-100 hover:border-indigo-300 hover:shadow-sm'
+                                }`}
+                        >
+                            <Wand2 className={`w-3 h-3 ${isTailoring ? 'animate-spin' : ''}`} />
+                            <span>{isTailoring ? 'Tailoring...' : 'Tailor to RFP'}</span>
+                        </button>
+                    )}
+
                     <button onClick={() => insertText('**', '**')} className={toolbarBtnClass} title="Bold">
                         <Bold className="w-4 h-4" />
                     </button>
@@ -107,20 +125,19 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ value, onChange,
             <div className="relative min-h-[200px] bg-white">
                 {showPreview ? (
                     <div className="prose prose-sm max-w-none p-4 text-slate-700 bg-slate-50 min-h-[200px]">
-                        {/* Simple markdown render preview */}
                         {value ? (
-                            value.split('\n').map((line, i) => {
-                                // Basic rendering for preview
-                                if (line.startsWith('## ')) return <h2 key={i} className="text-xl font-bold mt-4 mb-2">{line.replace('## ', '')}</h2>;
-                                if (line.startsWith('* **')) return <li key={i} className="ml-4 list-disc"><strong className="font-semibold">{line.match(/\*\*(.*?)\*\*/)?.[1]}:</strong> {line.split(': ')[1]}</li>;
-                                if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc">{line.replace('- ', '')}</li>;
-                                if (line.startsWith('1. ')) return <li key={i} className="ml-4 list-decimal">{line.replace(/1\. /, '')}</li>;
-                                if (line.match(/!\[(.*?)\]\((.*?)\)/)) {
-                                    const match = line.match(/!\[(.*?)\]\((.*?)\)/);
-                                    return <img key={i} src={match?.[2]} alt={match?.[1]} className="max-w-full rounded-lg my-2 border border-slate-200" />;
-                                }
-                                return <p key={i} className="min-h-[1rem]">{line}</p>;
-                            })
+                            <Markdown
+                                components={{
+                                    h1: ({node, ...props}) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
+                                    h2: ({node, ...props}) => <h2 className="text-lg font-bold mt-3 mb-2" {...props} />,
+                                    ul: ({node, ...props}) => <ul className="list-disc ml-4 mb-2" {...props} />,
+                                    ol: ({node, ...props}) => <ol className="list-decimal ml-4 mb-2" {...props} />,
+                                    li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                                    img: ({node, ...props}) => <img className="max-w-full rounded-lg my-2 border border-slate-200" {...props} />,
+                                }}
+                            >
+                                {value}
+                            </Markdown>
                         ) : (
                             <span className="text-slate-400 italic">No content...</span>
                         )}

@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
-import { ProposalState, RFPAnalysis, Recommendations, BuildingBlock, PricingLineItem } from '../types';
+import { ProposalState, RFPAnalysis, Recommendations, BuildingBlock, PricingLineItem, LibraryBlock } from '../types';
 import { BUILDING_BLOCKS } from '../constants';
+import { analyzeRFP, recommendBlocks, tailorContent } from '../services/geminiService';
 import { MarkdownEditor } from './MarkdownEditor';
-import { 
-    CheckCircle2, ChevronDown, Wand2, FileText, Layout, Info, 
-    Users, Briefcase, ShieldCheck, Lock, GitMerge, GraduationCap, CheckSquare, Square,
-    Plus, Trash2, Calculator, DollarSign
-} from 'lucide-react';
+import { Settings, Wand2, FileText, Users, Briefcase, Layout, CheckCircle2, ShieldCheck, Lock, GitMerge, GraduationCap, Info, Plus, Trash2, CheckSquare, Square, Library, ChevronDown } from 'lucide-react';
 
 interface ProposalBuilderProps {
   analysis: RFPAnalysis;
   recommendations: Recommendations;
   onPreview: (state: ProposalState) => void;
+  libraryBlocks: LibraryBlock[];
 }
 
-export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, recommendations, onPreview }) => {
+export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, recommendations, onPreview, libraryBlocks }) => {
   
+  const [tailoringBlockId, setTailoringBlockId] = useState<string | null>(null);
+
   // Helper to seed initial pricing based on AI recommendation
   const getInitialPricing = (recId: string): PricingLineItem[] => {
     if (recId === 'price-fix') {
@@ -65,7 +65,7 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
     customContent: {}
   });
 
-  const [activeSection, setActiveSection] = useState<string | null>('intro');
+  const [activeSection, setActiveSection] = useState<string | null>(null);
 
   // Categories definition
   const sections = [
@@ -173,6 +173,18 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
     return (recommendations as any)[category];
   };
 
+  const handleTailor = async (blockId: string, content: string, sectionName: string) => {
+    setTailoringBlockId(blockId);
+    try {
+        const tailored = await tailorContent(content, analysis, sectionName);
+        updateCustomContent(blockId, tailored);
+    } catch (error) {
+        console.error("Tailoring failed", error);
+    } finally {
+        setTailoringBlockId(null);
+    }
+  };
+
   return (
     <div className="flex h-full bg-slate-50">
       {/* LEFT SIDEBAR: Requirements Analysis */}
@@ -192,7 +204,7 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
             <div>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Requirements</h3>
                 <ul className="space-y-2">
-                    {analysis.keyRequirements.map((req, i) => (
+                    {analysis.keyRequirements?.map((req, i) => (
                         <li key={i} className="flex items-start text-sm text-slate-700">
                             <span className="mr-2 mt-1.5 w-1.5 h-1.5 bg-primary-500 rounded-full flex-shrink-0"></span>
                             {req}
@@ -206,15 +218,15 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-slate-50 p-2 rounded border border-slate-100">
                         <span className="block text-xs text-slate-400">Complexity</span>
-                        <span className="text-sm font-medium text-slate-700">{analysis.suggestedStrategy.complexity}</span>
+                        <span className="text-sm font-medium text-slate-700">{analysis.suggestedStrategy?.complexity || 'N/A'}</span>
                     </div>
                     <div className="bg-slate-50 p-2 rounded border border-slate-100">
                         <span className="block text-xs text-slate-400">Speed</span>
-                        <span className="text-sm font-medium text-slate-700">{analysis.suggestedStrategy.speed}</span>
+                        <span className="text-sm font-medium text-slate-700">{analysis.suggestedStrategy?.speed || 'N/A'}</span>
                     </div>
                     <div className="bg-slate-50 p-2 rounded border border-slate-100 col-span-2">
                         <span className="block text-xs text-slate-400">Tone</span>
-                        <span className="text-sm font-medium text-slate-700">{analysis.suggestedStrategy.tone}</span>
+                        <span className="text-sm font-medium text-slate-700">{analysis.suggestedStrategy?.tone || 'N/A'}</span>
                     </div>
                 </div>
             </div>
@@ -234,7 +246,7 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
                     onClick={() => onPreview(proposalState)}
                     className="px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
                 >
-                    Finalize & Export
+                    Next: Refine Proposal
                 </button>
             </div>
         </div>
@@ -256,13 +268,23 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
                 // @ts-ignore
                 const currentBlockId = proposalState[stateKey];
                 
+                // Look in both standard blocks and library blocks
                 const currentBlock = (!isCaseStudy && !isPricing)
-                    ? BUILDING_BLOCKS.find(b => b.id === currentBlockId)
+                    ? (BUILDING_BLOCKS.find(b => b.id === currentBlockId) || libraryBlocks.find(b => b.id === currentBlockId))
                     : null;
                 
                 const recommendation = getRecommendation(section.key);
                 const isActive = proposalState.activeSections[section.key];
-                const options = BUILDING_BLOCKS.filter(b => b.category === section.key);
+                
+                // Merge standard blocks with user library blocks
+                const categoryLibraryBlocks = libraryBlocks.filter(b => b.category === section.key);
+                // Convert LibraryBlock to BuildingBlock structure (compatible)
+                const adaptedLibraryBlocks: BuildingBlock[] = categoryLibraryBlocks.map(b => ({
+                    ...b,
+                    tags: [...b.tags, 'custom']
+                }));
+                
+                const options = [...BUILDING_BLOCKS.filter(b => b.category === section.key), ...adaptedLibraryBlocks];
 
                 return (
                     <div key={section.key} className={`bg-white rounded-xl shadow-sm border transition-all duration-200 ${activeSection === section.key && isActive ? 'ring-2 ring-primary-100 border-primary-300' : 'border-slate-200 hover:border-slate-300'} ${!isActive ? 'opacity-60' : ''}`}>
@@ -502,6 +524,11 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
                                                                         <Wand2 className="w-3 h-3 mr-1" /> AI Pick
                                                                     </div>
                                                                 )}
+                                                                {opt.tags.includes('custom') && (
+                                                                    <div className="absolute -top-3 -right-2 bg-primary-100 text-primary-700 text-xs px-2 py-0.5 rounded-full font-medium flex items-center border border-primary-200 shadow-sm z-10">
+                                                                        <Library className="w-3 h-3 mr-1" /> Custom
+                                                                    </div>
+                                                                )}
                                                                 <div className="font-medium text-slate-800 text-sm mb-1">{opt.name}</div>
                                                                 <div className="text-xs text-slate-500 line-clamp-2 mb-2">{opt.description}</div>
                                                                 <div className="flex flex-wrap gap-1">
@@ -540,6 +567,9 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
                                                             label={`Editing: ${block.name}`}
                                                             value={editedContent}
                                                             onChange={(newVal) => updateCustomContent(id, newVal)}
+                                                            // Tailoring moved to Refine stage
+                                                            // onTailor={() => handleTailor(id, editedContent, block.name)}
+                                                            // isTailoring={tailoringBlockId === id}
                                                         />
                                                     );
                                                 })}
@@ -556,6 +586,9 @@ export const ProposalBuilder: React.FC<ProposalBuilderProps> = ({ analysis, reco
                                                     <MarkdownEditor 
                                                         value={proposalState.customContent[currentBlock.id] || currentBlock.content}
                                                         onChange={(newVal) => updateCustomContent(currentBlock.id, newVal)}
+                                                        // Tailoring moved to Refine stage
+                                                        // onTailor={() => handleTailor(currentBlock.id, proposalState.customContent[currentBlock.id] || currentBlock.content, currentBlock.name)}
+                                                        // isTailoring={tailoringBlockId === currentBlock.id}
                                                     />
                                                 </div>
                                             )

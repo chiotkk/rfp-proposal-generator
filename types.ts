@@ -3,6 +3,7 @@ export enum AppStep {
   UPLOAD = 'UPLOAD',
   ANALYZING = 'ANALYZING',
   BUILDER = 'BUILDER',
+  REFINE = 'REFINE',
   PREVIEW = 'PREVIEW',
 }
 
@@ -19,6 +20,15 @@ export type BlockCategory =
   | 'security' 
   | 'change_mgmt' 
   | 'training';
+
+export interface LibraryBlock {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  category: BlockCategory;
+  tags: string[];
+}
 
 export interface BuildingBlock {
   id: string;

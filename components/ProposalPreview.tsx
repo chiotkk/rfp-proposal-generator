@@ -2,6 +2,7 @@ import React from 'react';
 import { BUILDING_BLOCKS } from '../constants';
 import { ProposalState, RFPAnalysis } from '../types';
 import { FileDown, ArrowLeft } from 'lucide-react';
+import Markdown from 'react-markdown';
 
 interface ProposalPreviewProps {
   state: ProposalState;
@@ -139,8 +140,15 @@ export const ProposalPreview: React.FC<ProposalPreviewProps> = ({ state, analysi
                   // Added image tag replacement for Base64 images
                   let contentHtml = finalContent
                     .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-                    .replace(/^\* \*\*(.*?)\*\*: (.*$)/gim, '<ul><li><strong>$1:</strong> $2</li></ul>') 
-                    .replace(/^\d\. \*\*(.*?)\*\*: (.*$)/gim, '<ol><li><strong>$1:</strong> $2</li></ol>')
+                    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                    // More robust list matching:
+                    // Matches * or - followed by **Key**: Value or **Key** - Value
+                    .replace(/^\s*[\*\-]\s+\*\*(.*?)\*\*[:\s-]*(.*$)/gim, '<ul><li><strong>$1:</strong> $2</li></ul>') 
+                    .replace(/^\s*\d+\.\s+\*\*(.*?)\*\*[:\s-]*(.*$)/gim, '<ol><li><strong>$1:</strong> $2</li></ol>')
+                    // Fallback for simple lists
+                    .replace(/^\s*[\*\-]\s+(.*$)/gim, '<ul><li>$1</li></ul>')
+                    .replace(/^\s*\d+\.\s+(.*$)/gim, '<ol><li>$1</li></ol>')
+                    
                     .replace(/!\[(.*?)\]\((.*?)\)/gim, '<br/><img src="$2" alt="$1" /><br/>') // Image handler
                     .replace(/\n/g, '<br/>')
                     // Cleanup consecutive lists
@@ -269,16 +277,22 @@ export const ProposalPreview: React.FC<ProposalPreviewProps> = ({ state, analysi
                                 return (
                                     <div key={blockId} className="mb-10">
                                         <hr className="my-8 border-slate-200" />
-                                        <div className="whitespace-pre-wrap font-serif text-lg leading-relaxed text-slate-800">
-                                            {contentToRender
-                                                .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold text-slate-900 mt-6 mb-4">$1</h2>')
-                                                .replace(/^\* \*\*(.*?)\*\*: (.*$)/gim, '<li class="ml-4 list-disc"><strong class="font-semibold">$1:</strong> $2</li>')
-                                                .replace(/^\d\. \*\*(.*?)\*\*: (.*$)/gim, '<li class="ml-4 list-decimal"><strong class="font-semibold">$1:</strong> $2</li>')
-                                                .replace(/!\[(.*?)\]\((.*?)\)/gim, '<img src="$2" alt="$1" class="max-w-full rounded-lg my-4 border border-slate-200" />')
-                                                .split('\n').map((line, i) => (
-                                                    <div key={i} dangerouslySetInnerHTML={{ __html: line || '<br/>' }} />
-                                                ))
-                                            }
+                                        <div className="markdown-body font-serif text-lg leading-relaxed text-slate-800">
+                                            <Markdown
+                                                components={{
+                                                    h1: ({node, ...props}) => <h1 className="text-3xl font-bold text-slate-900 mt-8 mb-4" {...props} />,
+                                                    h2: ({node, ...props}) => <h2 className="text-2xl font-bold text-slate-900 mt-6 mb-4" {...props} />,
+                                                    h3: ({node, ...props}) => <h3 className="text-xl font-bold text-slate-800 mt-5 mb-3" {...props} />,
+                                                    ul: ({node, ...props}) => <ul className="list-disc ml-6 mb-4 space-y-2" {...props} />,
+                                                    ol: ({node, ...props}) => <ol className="list-decimal ml-6 mb-4 space-y-2" {...props} />,
+                                                    li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                                                    p: ({node, ...props}) => <p className="mb-4" {...props} />,
+                                                    strong: ({node, ...props}) => <strong className="font-semibold text-slate-900" {...props} />,
+                                                    img: ({node, ...props}) => <img className="max-w-full rounded-lg my-4 border border-slate-200" {...props} />,
+                                                }}
+                                            >
+                                                {contentToRender}
+                                            </Markdown>
                                         </div>
                                     </div>
                                 );
